@@ -25,14 +25,11 @@ input[type=number] { width: 100%; padding: 10px; font-size: 1.1em; border-radius
 
 <h1>イベント会計アプリ</h1>
 
-<!-- CSV読み込み -->
 <input type="file" id="csvFile" accept=".csv" />
 <p id="productCount"></p>
 
-<!-- QRコードスキャン -->
 <div id="scan-region"></div>
 
-<!-- 会計リスト -->
 <table>
 <thead>
 <tr><th>商品名</th><th>価格</th><th>販売数</th></tr>
@@ -42,7 +39,6 @@ input[type=number] { width: 100%; padding: 10px; font-size: 1.1em; border-radius
 
 <p id="total">合計: 0円</p>
 
-<!-- 支払いボタン -->
 <div class="input-buttons">
     <button data-amount="100">100円</button>
     <button data-amount="500">500円</button>
@@ -53,7 +49,6 @@ input[type=number] { width: 100%; padding: 10px; font-size: 1.1em; border-radius
 <input type="number" id="paid" placeholder="その他金額入力" />
 <p id="change"></p>
 
-<!-- CSV出力 -->
 <button id="exportBtn" style="background-color: orange; color:white; width:100%;">売上CSVを保存</button>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -85,20 +80,7 @@ document.getElementById('csvFile').addEventListener('change', (e)=>{
     });
 });
 
-// QRコードスキャン（カメラのみ使用）
-function onScanSuccess(decodedText, decodedResult) {
-    const product = products.find(p => p.id === decodedText);
-    if(!product) {
-        alert("未登録の商品IDです");
-        return;
-    }
-    product.sold +=1;
-    sales[product.id] = product;
-
-    total += product.price;
-    updateSalesList();
-}
-
+// 会計更新
 function updateSalesList() {
     const tbody = document.getElementById('salesList');
     tbody.innerHTML = '';
@@ -127,7 +109,6 @@ function updateChange(){
 }
 document.getElementById('paid').addEventListener('input', updateChange);
 
-// 金額ボタン
 document.querySelectorAll('.input-buttons button').forEach(btn => {
     btn.addEventListener('click', ()=>{
         const amount = parseInt(btn.getAttribute('data-amount'));
@@ -149,17 +130,31 @@ document.getElementById('exportBtn').addEventListener('click', ()=>{
     saveAs(blob, "sales_summary.csv");
 });
 
-// QRコードスキャナー起動
-const html5QrCode = new Html5Qrcode("scan-region");
-Html5Qrcode.getCameras().then(cameras => {
-    if(cameras && cameras.length){
-        html5QrCode.start(
-            { facingMode: "environment" },
-            { fps:10, qrbox:250 },
-            onScanSuccess
-        );
-    }
-}).catch(err => console.log(err));
+// QRコードスキャン（カメラのみ）
+document.addEventListener("DOMContentLoaded", function() {
+    const html5QrCode = new Html5Qrcode("scan-region");
+    Html5Qrcode.getCameras().then(cameras => {
+        if(cameras && cameras.length){
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps:10, qrbox:250 },
+                (decodedText)=>{
+                    const product = products.find(p => p.id === decodedText);
+                    if(!product){
+                        alert("未登録の商品IDです");
+                        return;
+                    }
+                    product.sold +=1;
+                    sales[product.id] = product;
+                    total += product.price;
+                    updateSalesList();
+                }
+            );
+        } else {
+            alert("カメラが見つかりません");
+        }
+    }).catch(err => alert("カメラ起動エラー：" + err));
+});
 </script>
 
 </body>
