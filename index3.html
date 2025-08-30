@@ -148,7 +148,8 @@ document.addEventListener("DOMContentLoaded", function() {
                     sales[product.id] = product;
                     total += product.price;
                     updateSalesList();
-                }
+                },
+                (error)=>{ console.log("読み取りエラー:", error); }
             );
         } else {
             alert("カメラが見つかりません");
@@ -159,3 +160,5 @@ document.addEventListener("DOMContentLoaded", function() {
 
 </body>
 </html>
+
+
