@@ -3,75 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>イベント会計アプリ</title>
+<title>イベント会計アプリ（スマホ版）</title>
 <style>
-body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
-h1 { text-align: center; color: #333; }
-#version { text-align:center; color:#555; margin-bottom: 10px; }
+body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 10px; margin:0; }
+h1 { text-align: center; color: #333; font-size: 1.5em; }
+#version { text-align:center; color:#555; margin-bottom: 10px; font-size:0.9em; }
 
-/* カメラ表示を正方形の四角に変更 */
+/* カメラ映像は画面幅に応じて調整 */
 #video {
-  width: 250px;
-  height: 250px;       /* 高さを幅と揃えて正方形に */
+  width: 100%;
+  max-width: 400px;
+  height: auto;
   border: 3px solid #333;
   display: block;
   margin: 10px auto;
-  border-radius: 0;    /* 四角に固定 */
-  object-fit: cover;   /* 映像を枠いっぱいに表示 */
+  border-radius: 0;
+  object-fit: cover;
 }
 
-button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; color: #fff; }
+/* ボタン大きめで押しやすく */
+button { padding: 15px 20px; margin: 5px 0; cursor: pointer; border: none; border-radius: 8px; color: #fff; font-size: 1em; width: 48%; box-sizing: border-box; }
 button:hover { opacity: 0.9; }
-#cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+#cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 ul { list-style: none; padding-left: 0; }
-li { padding: 3px 0; }
-#payment button { background: #28a745; }
-#checkoutBtn { background: #ffc107; color: #333; }
-.delBtn { background: #dc3545; margin-left: 10px; border-radius: 3px; padding: 2px 6px; font-size: 12px; }
-
-/* 非表示変更履歴 */
+li { padding: 5px 0; font-size: 1em; }
+#payment button { background: #28a745; width: 30%; margin:3px; }
+#checkoutBtn { background: #ffc107; color: #333; width: 100%; }
+.delBtn { background: #dc3545; margin-left: 5px; border-radius: 3px; padding: 3px 6px; font-size: 0.9em; }
 </style>
 </head>
 <body>
 
-<!--
-============================================================
-変更履歴（非表示コメント）
-============================================================
-
-ver3.0 - 2025-08-30
-・初版リリース
-・CSV商品リスト読み込み
-・カメラQRスキャンでカートに追加
-・カート・合計金額表示
-・受取金額ボタン（100,500,1000,5000,10000円）
-・売上履歴表示
-・CSVエクスポート
-
-ver3.1 - 2025-08-30
-・バージョン情報追加
-・スキャン済み商品のみ表示（CSV全商品リストは非表示）
-・在庫数非表示
-・カメラ解像度高め（PC/スマホで読み取り安定）
-
-ver3.11 - 2025-08-30
-・カメラ解析を1280x720に変更（高解像度解析）
-・画面表示は小さく（250x150px）でUIコンパクト化
-・QR読み取り安定化（2回連続で同じコード読み取りで確定）
-・バージョン更新：ver3.11
-
-ver3.12 - 2025-08-30
-・カート内商品およびスキャン済み商品に削除ボタン追加
-・削除で合計金額自動更新
-・会計確定前に間違った商品を削除可能に
-・カメラ表示を四角に変更
-・バージョン更新：ver3.12
-
-============================================================
--->
-
 <h1>🎉 イベント簡易会計アプリ 🎉</h1>
-<p id="version">2025-08-30 ver3.12</p>
+<p id="version">2025-08-30 ver3.13-s</p>
 
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
@@ -109,10 +73,13 @@ ver3.12 - 2025-08-30
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
+// ver3.13-s スマホ最適化版スクリプト
 let products = {};
 let cart = [];
 let total = 0;
 let salesHistory = [];
+let lastCode = "";
+let codeVisible = false;
 
 const video = document.getElementById("video");
 const resultSpan = document.getElementById("result");
@@ -122,7 +89,6 @@ const productList = document.getElementById("productList");
 const historyList = document.getElementById("historyList");
 const changeSpan = document.getElementById("change");
 
-// CSV読込
 document.getElementById("csvFile").addEventListener("change", function(evt){
   const file = evt.target.files[0];
   if(!file) return;
@@ -139,7 +105,6 @@ document.getElementById("csvFile").addEventListener("change", function(evt){
   reader.readAsText(file);
 });
 
-// カメラ起動（高解像度解析）
 document.getElementById("startBtn").onclick = async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -152,10 +117,6 @@ document.getElementById("startBtn").onclick = async () => {
   }
 };
 
-// QR読み取り（安定化）
-let lastCode = "";
-let sameCount = 0;
-
 function scanQR(){
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -163,20 +124,17 @@ function scanQR(){
     if(video.readyState === video.HAVE_ENOUGH_DATA){
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
       const code = jsQR(imageData.data, canvas.width, canvas.height);
       if(code){
-        if(code.data === lastCode){
-          sameCount++;
-          if(sameCount >= 2){
-            handleQR(code.data);
-            sameCount = 0;
-          }
-        } else {
+        if(code.data !== lastCode || !codeVisible){
+          handleQR(code.data);
           lastCode = code.data;
-          sameCount = 1;
+          codeVisible = true;
         }
+      } else {
+        codeVisible = false;
       }
     }
     requestAnimationFrame(tick);
@@ -196,97 +154,73 @@ function handleQR(id){
   }
 }
 
-// カート更新（削除機能付き）
 function updateCart(){
   cartItems.innerHTML = "";
-  cart.forEach((item, index) => {
-    const li = document.createElement("li");
-    li.textContent = `${item.name} - ${item.price}円 `;
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "❌";
-    delBtn.className = "delBtn";
-    delBtn.onclick = () => {
-      cart.splice(index, 1);
-      total -= item.price;
-      updateCart();
-      updateProductList();
-    };
+  cart.forEach((item,index)=>{
+    const li=document.createElement("li");
+    li.textContent=`${item.name} - ${item.price}円 `;
+    const delBtn=document.createElement("button");
+    delBtn.textContent="❌";
+    delBtn.className="delBtn";
+    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
     li.appendChild(delBtn);
     cartItems.appendChild(li);
   });
-  totalSpan.textContent = total;
-  changeSpan.textContent = 0;
+  totalSpan.textContent=total;
+  changeSpan.textContent=0;
 }
 
-// スキャン済み商品リスト更新（削除機能付き）
 function updateProductList(){
-  productList.innerHTML = "";
-  cart.forEach((item, index) => {
-    const li = document.createElement("li");
-    li.textContent = `${item.name} - ${item.price}円 `;
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "❌";
-    delBtn.className = "delBtn";
-    delBtn.onclick = () => {
-      cart.splice(index, 1);
-      total -= item.price;
-      updateCart();
-      updateProductList();
-    };
+  productList.innerHTML="";
+  cart.forEach((item,index)=>{
+    const li=document.createElement("li");
+    li.textContent=`${item.name} - ${item.price}円 `;
+    const delBtn=document.createElement("button");
+    delBtn.textContent="❌";
+    delBtn.className="delBtn";
+    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
     li.appendChild(delBtn);
     productList.appendChild(li);
   });
 }
 
-document.getElementById("checkoutBtn").onclick = () => {
-  if(cart.length === 0){
-    alert("カートが空です");
-    return;
-  }
-  const time = new Date().toLocaleString();
-  salesHistory.push({
-    time,
-    items: cart.map(c => `${c.name}(${c.price}円)`),
-    sum: total
-  });
+document.getElementById("checkoutBtn").onclick=()=>{
+  if(cart.length===0){ alert("カートが空です"); return; }
+  const time=new Date().toLocaleString();
+  salesHistory.push({time, items:cart.map(c=>`${c.name}(${c.price}円)`), sum:total});
   updateHistory();
-  cart = [];
-  total = 0;
-  updateCart();
+  cart=[]; total=0; updateCart();
   alert("会計完了！受取金額ボタンでお釣りを確認してください");
 };
 
 document.querySelectorAll(".payBtn").forEach(btn=>{
-  btn.onclick = () => {
-    const amount = parseInt(btn.dataset.amount);
-    const change = amount - total;
-    changeSpan.textContent = change >= 0 ? change : 0;
+  btn.onclick=()=>{
+    const amount=parseInt(btn.dataset.amount);
+    const change=amount-total;
+    changeSpan.textContent = change>=0?change:0;
   };
 });
 
 function updateHistory(){
-  historyList.innerHTML = "";
+  historyList.innerHTML="";
   salesHistory.forEach(sale=>{
-    const li = document.createElement("li");
-    li.textContent = `${sale.time} - 合計${sale.sum}円 [${sale.items.join(" / ")}]`;
+    const li=document.createElement("li");
+    li.textContent=`${sale.time} - 合計${sale.sum}円 [${sale.items.join(" / ")}]`;
     historyList.appendChild(li);
   });
 }
 
-document.getElementById("exportBtn").onclick = () => {
-  let csv = "日時,商品リスト,合計金額\n";
+document.getElementById("exportBtn").onclick=()=>{
+  let csv="日時,商品リスト,合計金額\n";
   salesHistory.forEach(sale=>{
-    csv += `${sale.time},"${sale.items.join(" / ")}",${sale.sum}\n`;
+    csv+=`${sale.time},"${sale.items.join(" / ")}",${sale.sum}\n`;
   });
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "sales_history.csv";
-  a.click();
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="sales_history.csv"; a.click();
   URL.revokeObjectURL(url);
 };
 </script>
 </body>
 </html>
-
