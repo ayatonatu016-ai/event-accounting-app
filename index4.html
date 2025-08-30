@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>イベント会計アプリ（ver4.0）</title>
+<style>
+body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 10px; margin:0; }
+h1 { text-align: center; color: #333; font-size: 1.5em; }
+#version { text-align:center; color:#555; margin-bottom: 10px; font-size:0.9em; }
+
+/* ボタン */
+button { padding: 15px 20px; margin: 5px 0; cursor: pointer; border: none; border-radius: 8px; color: #fff; font-size: 1em; width: 48%; box-sizing: border-box; }
+button:hover { opacity: 0.9; }
+#cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+ul { list-style: none; padding-left: 0; }
+li { padding: 5px 0; font-size: 1em; }
+
+/* 受取金額ボタン */
+#payment button { background: #28a745; width: 30%; margin:3px; }
+
+/* 会計確定ボタン */
+#checkoutBtn { background: #ffc107; color: #333; width: 100%; }
+
+/* 削除ボタン */
+.delBtn { background: #dc3545; margin-left: 5px; border-radius: 3px; padding: 3px 6px; font-size: 0.9em; }
+
+/* カメラ切替ボタン */
+#cameraBtn {
+  background-color: #007bff; 
+  color: #fff;
+  font-size: 1.2em;          
+  font-weight: bold;
+  padding: 20px;
+  margin: 20px auto;
+  width: 90%;
+  display: block;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+#cameraBtn:hover { background-color: #0056b3; }
+
+/* カメラ状態インジケーター */
+#cameraStatus { display:inline-flex; align-items:center; margin-left:10px; font-weight:bold; }
+#statusDot { width:15px; height:15px; border-radius:50%; background:red; display:inline-block; margin-right:5px; }
+</style>
+</head>
+<body>
+
+<h1>🎉 イベント簡易会計アプリ 🎉</h1>
+<p id="version">2025-08-30 ver4.0</p>
+
+<input type="file" id="csvFile" accept=".csv"><br><br>
+
+<button id="cameraBtn">📷 カメラ切替</button>
+<span id="cameraStatus">
+  <span id="statusDot"></span>
+  <span id="statusText">停止中</span>
+</span>
+
+<video id="video" autoplay playsinline style="display:none;"></video>
+<p>読み取り結果: <span id="result">未読み取り</span></p>
+
+<div id="cart">
+  <h3>🛒 カート</h3>
+  <ul id="cartItems"></ul>
+  <p>合計: <span id="total">0</span> 円</p>
+  <button id="checkoutBtn">会計確定</button>
+</div>
+
+<div id="payment">
+  <h3>💰 受取金額</h3>
+  <button class="payBtn" data-amount="100">100円</button>
+  <button class="payBtn" data-amount="500">500円</button>
+  <button class="payBtn" data-amount="1000">1000円</button>
+  <button class="payBtn" data-amount="5000">5000円</button>
+  <button class="payBtn" data-amount="10000">10000円</button>
+  <p>お釣り: <span id="change">0</span> 円</p>
+</div>
+
+<div id="products">
+  <h3>📦 スキャン済み商品</h3>
+  <ul id="productList"></ul>
+</div>
+
+<div id="history">
+  <h3>📝 売上履歴</h3>
+  <ul id="historyList"></ul>
+  <button id="exportBtn">CSVエクスポート</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+<script>
+let products = {};
+let cart = [];
+let total = 0;
+let salesHistory = [];
+let lastCode = "";
+let codeVisible = false;
+let cameraStream = null;
+let scanning = false;
+
+const video = document.getElementById("video");
+const resultSpan = document.getElementById("result");
+const cartItems = document.getElementById("cartItems");
+const totalSpan = document.getElementById("total");
+const productList = document.getElementById("productList");
+const historyList = document.getElementById("historyList");
+
+const cameraBtn = document.getElementById("cameraBtn");
+const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+
+// CSV読み込み
+document.getElementById("csvFile").addEventListener("change", function(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const lines = e.target.result.split("\n").map(l => l.trim()).filter(l => l);
+    products = {};
+    for(let line of lines){
+      const [id, name, price] = line.split(",");
+      products[id] = { name, price: parseInt(price) };
+    }
+    alert("商品データ読み込み完了: " + Object.keys(products).length + "件");
+  };
+  reader.readAsText(file);
+});
+
+// カメラ切替
+cameraBtn.onclick = async () => {
+  if(!scanning){
+    try{
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" } });
+      video.srcObject = cameraStream;
+      scanning = true;
+      updateCameraStatus(true);
+      cameraBtn.textContent = "📴 カメラ停止";
+      scanQR();
+    }catch(err){
+      alert("カメラ起動失敗: "+err.message);
+    }
+  }else{
+    stopCamera();
+  }
+};
+
+function updateCameraStatus(on){
+  if(on){
+    statusDot.style.backgroundColor="green";
+    statusText.textContent="起動中";
+  }else{
+    statusDot.style.backgroundColor="red";
+    statusText.textContent="停止中";
+  }
+}
+
+function stopCamera(){
+  if(cameraStream){
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+  scanning=false;
+  updateCameraStatus(false);
+  cameraBtn.textContent="📷 カメラ切替";
+}
+
+// QRスキャン
+function scanQR(){
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  function tick(){
+    if(video.readyState === video.HAVE_ENOUGH_DATA){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
+      if(code){
+        if(code.data !== lastCode || !codeVisible){
+          handleQR(code.data);
+          lastCode = code.data;
+          codeVisible = true;
+        }
+      }else{
+        codeVisible=false;
+      }
+    }
+    if(scanning) requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// QRハンドリング
+function handleQR(id){
+  if(products[id]){
+    cart.push(products[id]);
+    total += products[id].price;
+    resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
+    updateCart();
+    updateProductList();
+
+    // 振動
+    if(navigator.vibrate) navigator.vibrate(200);
+  }else{
+    resultSpan.textContent = `不明な商品ID: ${id}`;
+    if(navigator.vibrate) navigator.vibrate([100,50,100]);
+  }
+}
+
+// カート更新
+function updateCart(){
+  cartItems.innerHTML="";
+  cart.forEach((item,index)=>{
+    const li=document.createElement("li");
+    li.textContent=`${item.name} - ${item.price}円 `;
+    const delBtn=document.createElement("button");
+    delBtn.textContent="❌";
+    delBtn.className="delBtn";
+    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
+    li.appendChild(delBtn);
+    cartItems.appendChild(li);
+  });
+  totalSpan.textContent=total;
+}
+
+// スキャン済み商品表示
+function updateProductList(){
+  productList.innerHTML="";
+  cart.forEach((item,index)=>{
+    const li=document.createElement("li");
+    li.textContent=`${item.name} - ${item.price}円 `;
+    const delBtn=document.createElement("button");
+    delBtn.textContent="❌";
+    delBtn.className="delBtn";
+    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
+    li.appendChild(delBtn);
+    productList.appendChild(li);
+  });
+}
+
+// 会計確定
+document.getElementById("checkoutBtn").onclick=()=>{
+  if(cart.length===0){ alert("カートが空です"); return; }
+  const time=new Date().toLocaleString();
+  salesHistory.push({time, items:cart.map(c=>`${c.name}(${c.price}円)`), sum:total});
+  updateHistory();
+  cart=[]; total=0; updateCart();
+  alert("会計完了！受取金額ボタンでお釣りを確認してください");
+};
+
+// 受取金額ボタン
+document.querySelectorAll(".payBtn").forEach(btn=>{
+  btn.onclick=()=>{
+    const amount=parseInt(btn.dataset.amount);
+    const change=amount-total;
+    document.getElementById("change").textContent = change>=0?change:0;
+  };
+});
+
+// 売上履歴更新
+function updateHistory(){
+  historyList.innerHTML="";
+  salesHistory.forEach(sale=>{
+    const li=document.createElement("li");
+    li.textContent=`${sale.time} - 合計${sale.sum}円 [${sale.items.join(" / ")}]`;
+    historyList.appendChild(li);
+  });
+}
+
+// CSVエクスポート
+document.getElementById("exportBtn").onclick=()=>{
+  let csv="日時,商品リスト,合計金額\n";
+  salesHistory.forEach(sale=>{
+    csv+=`${sale.time},"${sale.items.join(" / ")}",${sale.sum}\n`;
+  });
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="sales_history.csv"; a.click();
+  URL.revokeObjectURL(url);
+};
+</script>
+</body>
+</html>
