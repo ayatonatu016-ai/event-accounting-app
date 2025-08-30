@@ -27,9 +27,33 @@ button:hover { opacity: 0.9; }
 #cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 ul { list-style: none; padding-left: 0; }
 li { padding: 5px 0; font-size: 1em; }
+
+/* 受取金額ボタン */
 #payment button { background: #28a745; width: 30%; margin:3px; }
+
+/* 会計確定ボタン */
 #checkoutBtn { background: #ffc107; color: #333; width: 100%; }
+
+/* 削除ボタン */
 .delBtn { background: #dc3545; margin-left: 5px; border-radius: 3px; padding: 3px 6px; font-size: 0.9em; }
+
+/* カメラ起動ボタンを目立たせる */
+#startBtn {
+  background-color: #007bff; /* 濃いブルー */
+  color: #fff;
+  font-size: 1.2em;          
+  font-weight: bold;
+  padding: 20px;
+  margin: 20px auto;
+  width: 90%;
+  display: block;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+#startBtn:hover {
+  background-color: #0056b3;
+}
 </style>
 </head>
 <body>
@@ -73,7 +97,6 @@ li { padding: 5px 0; font-size: 1em; }
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
-// ver3.13-s スマホ最適化版スクリプト
 let products = {};
 let cart = [];
 let total = 0;
@@ -224,3 +247,5 @@ document.getElementById("exportBtn").onclick=()=>{
 </script>
 </body>
 </html>
+
+
