@@ -12,7 +12,7 @@ h1 { text-align: center; color: #333; font-size: 1.5em; }
 /* ボタン */
 button { padding: 15px 20px; margin: 5px 0; cursor: pointer; border: none; border-radius: 8px; color: #fff; font-size: 1em; width: 48%; box-sizing: border-box; }
 button:hover { opacity: 0.9; }
-#cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+#cart, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 ul { list-style: none; padding-left: 0; }
 li { padding: 5px 0; font-size: 1em; }
 
@@ -44,6 +44,9 @@ li { padding: 5px 0; font-size: 1em; }
 /* カメラ状態インジケーター */
 #cameraStatus { display:inline-flex; align-items:center; margin-left:10px; font-weight:bold; }
 #statusDot { width:15px; height:15px; border-radius:50%; background:red; display:inline-block; margin-right:5px; }
+
+/* 小さなカメラ映像 */
+#video { width:40px; height:30px; position:fixed; bottom:10px; right:10px; border:1px solid #333; border-radius:4px; }
 </style>
 </head>
 <body>
@@ -59,7 +62,7 @@ li { padding: 5px 0; font-size: 1em; }
   <span id="statusText">停止中</span>
 </span>
 
-<video id="video" autoplay playsinline style="display:none;"></video>
+<video id="video" autoplay playsinline></video>
 <p>読み取り結果: <span id="result">未読み取り</span></p>
 
 <div id="cart">
@@ -77,11 +80,6 @@ li { padding: 5px 0; font-size: 1em; }
   <button class="payBtn" data-amount="5000">5000円</button>
   <button class="payBtn" data-amount="10000">10000円</button>
   <p>お釣り: <span id="change">0</span> 円</p>
-</div>
-
-<div id="products">
-  <h3>📦 スキャン済み商品</h3>
-  <ul id="productList"></ul>
 </div>
 
 <div id="history">
@@ -105,7 +103,6 @@ const video = document.getElementById("video");
 const resultSpan = document.getElementById("result");
 const cartItems = document.getElementById("cartItems");
 const totalSpan = document.getElementById("total");
-const productList = document.getElementById("productList");
 const historyList = document.getElementById("historyList");
 
 const cameraBtn = document.getElementById("cameraBtn");
@@ -199,7 +196,6 @@ function handleQR(id){
     total += products[id].price;
     resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
     updateCart();
-    updateProductList();
 
     // 振動
     if(navigator.vibrate) navigator.vibrate(200);
@@ -218,26 +214,11 @@ function updateCart(){
     const delBtn=document.createElement("button");
     delBtn.textContent="❌";
     delBtn.className="delBtn";
-    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
+    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); };
     li.appendChild(delBtn);
     cartItems.appendChild(li);
   });
   totalSpan.textContent=total;
-}
-
-// スキャン済み商品表示
-function updateProductList(){
-  productList.innerHTML="";
-  cart.forEach((item,index)=>{
-    const li=document.createElement("li");
-    li.textContent=`${item.name} - ${item.price}円 `;
-    const delBtn=document.createElement("button");
-    delBtn.textContent="❌";
-    delBtn.className="delBtn";
-    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
-    li.appendChild(delBtn);
-    productList.appendChild(li);
-  });
 }
 
 // 会計確定
