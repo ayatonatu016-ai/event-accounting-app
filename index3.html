@@ -21,7 +21,7 @@ li { padding: 3px 0; }
 </head>
 <body>
 <h1>🎉 イベント簡易会計アプリ 🎉</h1>
-
+<p style="text-align:center; color: #555;">2025-08-30 ver3.0</p>
 <!-- CSV読込 -->
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
@@ -49,9 +49,9 @@ li { padding: 3px 0; }
   <p>お釣り: <span id="change">0</span> 円</p>
 </div>
 
-<!-- 商品リスト -->
+<!-- 商品リスト（在庫非表示） -->
 <div id="products">
-  <h3>📦 商品リスト（残り在庫）</h3>
+  <h3>📦 商品リスト</h3>
   <ul id="productList"></ul>
 </div>
 
@@ -64,7 +64,7 @@ li { padding: 3px 0; }
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
-let products = {}; // 商品データ {ID: {name, price, stock}}
+let products = {}; // 商品データ {ID: {name, price}}
 let cart = [];
 let total = 0;
 let salesHistory = [];
@@ -86,8 +86,8 @@ document.getElementById("csvFile").addEventListener("change", function(evt){
     const lines = e.target.result.split("\n").map(l => l.trim()).filter(l => l);
     products = {};
     for(let line of lines){
-      const [id, name, price, stock] = line.split(",");
-      products[id] = { name, price: parseInt(price), stock: parseInt(stock) };
+      const [id, name, price] = line.split(",");
+      products[id] = { name, price: parseInt(price) };
     }
     alert("商品データ読み込み完了: " + Object.keys(products).length + "件");
     updateProductList();
@@ -101,7 +101,7 @@ function updateProductList(){
   for(const id in products){
     const item = products[id];
     const li = document.createElement("li");
-    li.textContent = `${item.name} - ${item.price}円 / 残り${item.stock}`;
+    li.textContent = `${item.name} - ${item.price}円`;
     productList.appendChild(li);
   }
 }
@@ -140,16 +140,10 @@ function scanQR(){
 // QR商品処理
 function handleQR(id){
   if(products[id]){
-    if(products[id].stock > 0){
-      products[id].stock -= 1;
-      cart.push(products[id]);
-      total += products[id].price;
-      resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
-      updateCart();
-      updateProductList();
-    } else {
-      resultSpan.textContent = `${products[id].name} は在庫切れです`;
-    }
+    cart.push(products[id]);
+    total += products[id].price;
+    resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
+    updateCart();
   } else {
     resultSpan.textContent = `不明な商品ID: ${id}`;
   }
@@ -222,6 +216,7 @@ document.getElementById("exportBtn").onclick = () => {
 </script>
 </body>
 </html>
+
 
 
 
