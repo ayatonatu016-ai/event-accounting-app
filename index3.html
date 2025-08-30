@@ -7,6 +7,7 @@
 <style>
 body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
 h1 { text-align: center; color: #333; }
+#version { text-align:center; color:#555; margin-bottom: 10px; }
 #video { width: 250px; height: 250px; border: 2px solid #333; display: block; margin: 10px auto; }
 button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: #fff; }
 button:hover { background: #0056b3; }
@@ -21,7 +22,8 @@ li { padding: 3px 0; }
 </head>
 <body>
 <h1>🎉 イベント簡易会計アプリ 🎉</h1>
-<p style="text-align:center; color: #555;">2025-08-30 ver3.0</p>
+<p id="version">2025-08-30 ver3.1</p>
+
 <!-- CSV読込 -->
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
@@ -49,9 +51,9 @@ li { padding: 3px 0; }
   <p>お釣り: <span id="change">0</span> 円</p>
 </div>
 
-<!-- 商品リスト（在庫非表示） -->
+<!-- スキャン済み商品リスト -->
 <div id="products">
-  <h3>📦 商品リスト</h3>
+  <h3>📦 スキャン済み商品</h3>
   <ul id="productList"></ul>
 </div>
 
@@ -90,21 +92,9 @@ document.getElementById("csvFile").addEventListener("change", function(evt){
       products[id] = { name, price: parseInt(price) };
     }
     alert("商品データ読み込み完了: " + Object.keys(products).length + "件");
-    updateProductList();
   };
   reader.readAsText(file);
 });
-
-// 商品リスト更新
-function updateProductList(){
-  productList.innerHTML = "";
-  for(const id in products){
-    const item = products[id];
-    const li = document.createElement("li");
-    li.textContent = `${item.name} - ${item.price}円`;
-    productList.appendChild(li);
-  }
-}
 
 // カメラ起動
 document.getElementById("startBtn").onclick = async () => {
@@ -144,6 +134,7 @@ function handleQR(id){
     total += products[id].price;
     resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
     updateCart();
+    updateProductList();
   } else {
     resultSpan.textContent = `不明な商品ID: ${id}`;
   }
@@ -159,6 +150,16 @@ function updateCart(){
   });
   totalSpan.textContent = total;
   changeSpan.textContent = 0;
+}
+
+// スキャン済み商品リスト更新
+function updateProductList(){
+  productList.innerHTML = "";
+  cart.forEach(item => {
+    const li = document.createElement("li");
+    li.textContent = `${item.name} - ${item.price}円`;
+    productList.appendChild(li);
+  });
 }
 
 // 会計確定
@@ -216,10 +217,3 @@ document.getElementById("exportBtn").onclick = () => {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
