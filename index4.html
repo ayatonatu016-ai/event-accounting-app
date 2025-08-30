@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>イベント会計アプリ（ver4.0）</title>
+<title>イベント会計アプリ（ver4.01）</title>
 <style>
 body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 10px; margin:0; }
 h1 { text-align: center; color: #333; font-size: 1.5em; }
@@ -32,9 +32,6 @@ li { padding: 5px 0; font-size: 1em; }
   font-size: 1.2em;          
   font-weight: bold;
   padding: 20px;
-  margin: 20px auto;
-  width: 90%;
-  display: block;
   border-radius: 12px;
   text-align: center;
   box-shadow: 0 4px 6px rgba(0,0,0,0.2);
@@ -45,8 +42,12 @@ li { padding: 5px 0; font-size: 1em; }
 #cameraStatus { display:inline-flex; align-items:center; margin-left:10px; font-weight:bold; }
 #statusDot { width:15px; height:15px; border-radius:50%; background:red; display:inline-block; margin-right:5px; }
 
-/* 小さなカメラ映像 */
-#video { width:40px; height:30px; position:fixed; bottom:10px; right:10px; border:1px solid #333; border-radius:4px; }
+/* カメラ映像横並び */
+.cameraWrapper { display:flex; align-items:center; margin-bottom:10px; }
+.videoContainer { position:relative; margin-left:10px; }
+#video { width:120px; height:90px; border:1px solid #333; border-radius:4px; }
+/* 読み取り枠 */
+#scanFrame { position:absolute; top:25%; left:25%; width:50%; height:50%; border:2px solid yellow; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -56,13 +57,18 @@ li { padding: 5px 0; font-size: 1em; }
 
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
-<button id="cameraBtn">📷 カメラ切替</button>
-<span id="cameraStatus">
-  <span id="statusDot"></span>
-  <span id="statusText">停止中</span>
-</span>
+<div class="cameraWrapper">
+  <button id="cameraBtn">📷 カメラ切替</button>
+  <div class="videoContainer">
+    <video id="video" autoplay playsinline></video>
+    <div id="scanFrame"></div>
+  </div>
+  <span id="cameraStatus">
+    <span id="statusDot"></span>
+    <span id="statusText">停止中</span>
+  </span>
+</div>
 
-<video id="video" autoplay playsinline></video>
 <p>読み取り結果: <span id="result">未読み取り</span></p>
 
 <div id="cart">
@@ -172,7 +178,7 @@ function scanQR(){
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+      const imageData = ctx.getImageData(0,0,canvas.width, canvas.height);
       const code = jsQR(imageData.data, canvas.width, canvas.height);
       if(code){
         if(code.data !== lastCode || !codeVisible){
