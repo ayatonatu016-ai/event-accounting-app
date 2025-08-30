@@ -3,39 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>会計アプリ（売上履歴付き）</title>
+<title>イベント会計アプリ</title>
 <style>
-#video { width: 100%; max-width: 400px; border: 2px solid #333; }
-#cart, #products, #history { margin-top: 20px; border: 1px solid #aaa; padding: 10px; }
+body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
+h1 { text-align: center; color: #333; }
+#video { width: 250px; height: 250px; border: 2px solid #333; display: block; margin: 10px auto; }
+button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: #fff; }
+button:hover { background: #0056b3; }
+#cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+ul { list-style: none; padding-left: 0; }
+li { padding: 3px 0; }
+#payment button { background: #28a745; }
+#payment button:hover { background: #218838; }
+#checkoutBtn { background: #ffc107; color: #333; }
+#checkoutBtn:hover { background: #e0a800; }
 </style>
 </head>
 <body>
-<h1>簡易会計アプリ（QR＋売上履歴）</h1>
+<h1>🎉 イベント簡易会計アプリ 🎉</h1>
 
 <!-- CSV読込 -->
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
 <!-- カメラ -->
-<button id="startBtn">カメラ起動</button>
+<button id="startBtn">📷 カメラ起動</button>
 <video id="video" autoplay playsinline></video>
-<p>読み取り結果: <span id="result">未読み取り</span></p>
+<p style="text-align:center;">読み取り結果: <span id="result">未読み取り</span></p>
 
 <!-- カート表示 -->
 <div id="cart">
-  <h3>カート</h3>
+  <h3>🛒 カート</h3>
   <ul id="cartItems"></ul>
   <p>合計: <span id="total">0</span> 円</p>
+  <button id="checkoutBtn">会計確定</button>
+</div>
+
+<!-- 受取金額ボタン -->
+<div id="payment">
+  <h3>💰 受取金額</h3>
+  <button class="payBtn" data-amount="100">100円</button>
+  <button class="payBtn" data-amount="500">500円</button>
+  <button class="payBtn" data-amount="1000">1000円</button>
+  <button class="payBtn" data-amount="5000">5000円</button>
+  <button class="payBtn" data-amount="10000">10000円</button>
+  <p>お釣り: <span id="change">0</span> 円</p>
 </div>
 
 <!-- 商品リスト -->
 <div id="products">
-  <h3>商品リスト（残り在庫）</h3>
+  <h3>📦 商品リスト（残り在庫）</h3>
   <ul id="productList"></ul>
 </div>
 
 <!-- 売上履歴 -->
 <div id="history">
-  <h3>売上履歴</h3>
+  <h3>📝 売上履歴</h3>
   <ul id="historyList"></ul>
   <button id="exportBtn">CSVエクスポート</button>
 </div>
@@ -45,7 +67,7 @@
 let products = {}; // 商品データ {ID: {name, price, stock}}
 let cart = [];
 let total = 0;
-let salesHistory = []; // 売上履歴 [{time, id, name, price}]
+let salesHistory = [];
 
 const video = document.getElementById("video");
 const resultSpan = document.getElementById("result");
@@ -53,8 +75,9 @@ const cartItems = document.getElementById("cartItems");
 const totalSpan = document.getElementById("total");
 const productList = document.getElementById("productList");
 const historyList = document.getElementById("historyList");
+const changeSpan = document.getElementById("change");
 
-// CSVファイル読込
+// CSV読込
 document.getElementById("csvFile").addEventListener("change", function(evt){
   const file = evt.target.files[0];
   if(!file) return;
@@ -72,7 +95,7 @@ document.getElementById("csvFile").addEventListener("change", function(evt){
   reader.readAsText(file);
 });
 
-// 商品リスト表示
+// 商品リスト更新
 function updateProductList(){
   productList.innerHTML = "";
   for(const id in products){
@@ -86,7 +109,9 @@ function updateProductList(){
 // カメラ起動
 document.getElementById("startBtn").onclick = async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 250 }, height: { ideal: 250 } }
+    });
     video.srcObject = stream;
     scanQR();
   } catch (err) {
@@ -98,7 +123,6 @@ document.getElementById("startBtn").onclick = async () => {
 function scanQR(){
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-
   function tick(){
     if(video.readyState === video.HAVE_ENOUGH_DATA){
       canvas.width = video.videoWidth;
@@ -106,30 +130,23 @@ function scanQR(){
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, canvas.width, canvas.height);
-      if(code){
-        handleQR(code.data);
-      }
+      if(code) handleQR(code.data);
     }
     requestAnimationFrame(tick);
   }
   tick();
 }
 
-// QRを商品として処理
+// QR商品処理
 function handleQR(id){
   if(products[id]){
     if(products[id].stock > 0){
-      products[id].stock -= 1; // 在庫を減らす
+      products[id].stock -= 1;
       cart.push(products[id]);
       total += products[id].price;
-
-      const time = new Date().toLocaleString();
-      salesHistory.push({ time, id, name: products[id].name, price: products[id].price });
-
       resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
       updateCart();
       updateProductList();
-      updateHistory();
     } else {
       resultSpan.textContent = `${products[id].name} は在庫切れです`;
     }
@@ -138,7 +155,7 @@ function handleQR(id){
   }
 }
 
-// カート更新表示
+// カート更新
 function updateCart(){
   cartItems.innerHTML = "";
   cart.forEach(item => {
@@ -147,25 +164,53 @@ function updateCart(){
     cartItems.appendChild(li);
   });
   totalSpan.textContent = total;
+  changeSpan.textContent = 0;
 }
 
-// 履歴更新表示
+// 会計確定
+document.getElementById("checkoutBtn").onclick = () => {
+  if(cart.length === 0){
+    alert("カートが空です");
+    return;
+  }
+  const time = new Date().toLocaleString();
+  salesHistory.push({
+    time,
+    items: cart.map(c => `${c.name}(${c.price}円)`),
+    sum: total
+  });
+  updateHistory();
+  cart = [];
+  total = 0;
+  updateCart();
+  alert("会計完了！受取金額ボタンでお釣りを確認してください");
+};
+
+// 受取金額ボタン
+document.querySelectorAll(".payBtn").forEach(btn=>{
+  btn.onclick = () => {
+    const amount = parseInt(btn.dataset.amount);
+    const change = amount - total;
+    changeSpan.textContent = change >= 0 ? change : 0;
+  };
+});
+
+// 履歴更新
 function updateHistory(){
   historyList.innerHTML = "";
-  salesHistory.forEach(sale => {
+  salesHistory.forEach(sale=>{
     const li = document.createElement("li");
-    li.textContent = `${sale.time} - ${sale.name} (${sale.price}円)`;
+    li.textContent = `${sale.time} - 合計${sale.sum}円 [${sale.items.join(", ")}]`;
     historyList.appendChild(li);
   });
 }
 
 // CSVエクスポート
 document.getElementById("exportBtn").onclick = () => {
-  let csv = "日時,ID,商品名,価格\n";
-  salesHistory.forEach(sale => {
-    csv += `${sale.time},${sale.id},${sale.name},${sale.price}\n`;
+  let csv = "日時,商品リスト,合計金額\n";
+  salesHistory.forEach(sale=>{
+    csv += `${sale.time},"${sale.items.join(" / ")}",${sale.sum}\n`;
   });
-
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -177,6 +222,8 @@ document.getElementById("exportBtn").onclick = () => {
 </script>
 </body>
 </html>
+
+
 
 
 
