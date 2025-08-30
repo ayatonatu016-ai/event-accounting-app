@@ -8,31 +8,77 @@
 body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
 h1 { text-align: center; color: #333; }
 #version { text-align:center; color:#555; margin-bottom: 10px; }
-#video { width: 250px; height: 150px; border: 2px solid #333; display: block; margin: 10px auto; }
-button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: #fff; }
-button:hover { background: #0056b3; }
+
+/* カメラ表示を正方形の四角に変更 */
+#video {
+  width: 250px;
+  height: 250px;       /* 高さを幅と揃えて正方形に */
+  border: 3px solid #333;
+  display: block;
+  margin: 10px auto;
+  border-radius: 0;    /* 四角に固定 */
+  object-fit: cover;   /* 映像を枠いっぱいに表示 */
+}
+
+button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; color: #fff; }
+button:hover { opacity: 0.9; }
 #cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 ul { list-style: none; padding-left: 0; }
 li { padding: 3px 0; }
 #payment button { background: #28a745; }
-#payment button:hover { background: #218838; }
 #checkoutBtn { background: #ffc107; color: #333; }
-#checkoutBtn:hover { background: #e0a800; }
+.delBtn { background: #dc3545; margin-left: 10px; border-radius: 3px; padding: 2px 6px; font-size: 12px; }
+
+/* 非表示変更履歴 */
 </style>
 </head>
 <body>
-<h1>🎉 イベント簡易会計アプリ 🎉</h1>
-<p id="version">2025-08-30 ver3.11</p>
 
-<!-- CSV読込 -->
+<!--
+============================================================
+変更履歴（非表示コメント）
+============================================================
+
+ver3.0 - 2025-08-30
+・初版リリース
+・CSV商品リスト読み込み
+・カメラQRスキャンでカートに追加
+・カート・合計金額表示
+・受取金額ボタン（100,500,1000,5000,10000円）
+・売上履歴表示
+・CSVエクスポート
+
+ver3.1 - 2025-08-30
+・バージョン情報追加
+・スキャン済み商品のみ表示（CSV全商品リストは非表示）
+・在庫数非表示
+・カメラ解像度高め（PC/スマホで読み取り安定）
+
+ver3.11 - 2025-08-30
+・カメラ解析を1280x720に変更（高解像度解析）
+・画面表示は小さく（250x150px）でUIコンパクト化
+・QR読み取り安定化（2回連続で同じコード読み取りで確定）
+・バージョン更新：ver3.11
+
+ver3.12 - 2025-08-30
+・カート内商品およびスキャン済み商品に削除ボタン追加
+・削除で合計金額自動更新
+・会計確定前に間違った商品を削除可能に
+・カメラ表示を四角に変更
+・バージョン更新：ver3.12
+
+============================================================
+-->
+
+<h1>🎉 イベント簡易会計アプリ 🎉</h1>
+<p id="version">2025-08-30 ver3.12</p>
+
 <input type="file" id="csvFile" accept=".csv"><br><br>
 
-<!-- カメラ -->
 <button id="startBtn">📷 カメラ起動</button>
 <video id="video" autoplay playsinline></video>
 <p style="text-align:center;">読み取り結果: <span id="result">未読み取り</span></p>
 
-<!-- カート表示 -->
 <div id="cart">
   <h3>🛒 カート</h3>
   <ul id="cartItems"></ul>
@@ -40,7 +86,6 @@ li { padding: 3px 0; }
   <button id="checkoutBtn">会計確定</button>
 </div>
 
-<!-- 受取金額ボタン -->
 <div id="payment">
   <h3>💰 受取金額</h3>
   <button class="payBtn" data-amount="100">100円</button>
@@ -51,13 +96,11 @@ li { padding: 3px 0; }
   <p>お釣り: <span id="change">0</span> 円</p>
 </div>
 
-<!-- スキャン済み商品リスト -->
 <div id="products">
   <h3>📦 スキャン済み商品</h3>
   <ul id="productList"></ul>
 </div>
 
-<!-- 売上履歴 -->
 <div id="history">
   <h3>📝 売上履歴</h3>
   <ul id="historyList"></ul>
@@ -66,7 +109,7 @@ li { padding: 3px 0; }
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
-let products = {}; // 商品データ {ID: {name, price}}
+let products = {};
 let cart = [];
 let total = 0;
 let salesHistory = [];
@@ -141,7 +184,6 @@ function scanQR(){
   tick();
 }
 
-// QR商品処理
 function handleQR(id){
   if(products[id]){
     cart.push(products[id]);
@@ -154,29 +196,48 @@ function handleQR(id){
   }
 }
 
-// カート更新
+// カート更新（削除機能付き）
 function updateCart(){
   cartItems.innerHTML = "";
-  cart.forEach(item => {
+  cart.forEach((item, index) => {
     const li = document.createElement("li");
-    li.textContent = `${item.name} - ${item.price}円`;
+    li.textContent = `${item.name} - ${item.price}円 `;
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "❌";
+    delBtn.className = "delBtn";
+    delBtn.onclick = () => {
+      cart.splice(index, 1);
+      total -= item.price;
+      updateCart();
+      updateProductList();
+    };
+    li.appendChild(delBtn);
     cartItems.appendChild(li);
   });
   totalSpan.textContent = total;
   changeSpan.textContent = 0;
 }
 
-// スキャン済み商品リスト更新
+// スキャン済み商品リスト更新（削除機能付き）
 function updateProductList(){
   productList.innerHTML = "";
-  cart.forEach(item => {
+  cart.forEach((item, index) => {
     const li = document.createElement("li");
-    li.textContent = `${item.name} - ${item.price}円`;
+    li.textContent = `${item.name} - ${item.price}円 `;
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "❌";
+    delBtn.className = "delBtn";
+    delBtn.onclick = () => {
+      cart.splice(index, 1);
+      total -= item.price;
+      updateCart();
+      updateProductList();
+    };
+    li.appendChild(delBtn);
     productList.appendChild(li);
   });
 }
 
-// 会計確定
 document.getElementById("checkoutBtn").onclick = () => {
   if(cart.length === 0){
     alert("カートが空です");
@@ -195,7 +256,6 @@ document.getElementById("checkoutBtn").onclick = () => {
   alert("会計完了！受取金額ボタンでお釣りを確認してください");
 };
 
-// 受取金額ボタン
 document.querySelectorAll(".payBtn").forEach(btn=>{
   btn.onclick = () => {
     const amount = parseInt(btn.dataset.amount);
@@ -204,7 +264,6 @@ document.querySelectorAll(".payBtn").forEach(btn=>{
   };
 });
 
-// 履歴更新
 function updateHistory(){
   historyList.innerHTML = "";
   salesHistory.forEach(sale=>{
@@ -214,7 +273,6 @@ function updateHistory(){
   });
 }
 
-// CSVエクスポート
 document.getElementById("exportBtn").onclick = () => {
   let csv = "日時,商品リスト,合計金額\n";
   salesHistory.forEach(sale=>{
@@ -231,3 +289,4 @@ document.getElementById("exportBtn").onclick = () => {
 </script>
 </body>
 </html>
+
