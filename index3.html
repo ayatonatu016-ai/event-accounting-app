@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>イベント会計アプリ</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="会計アプリ">
+<style>
+body { font-family: sans-serif; padding: 10px; background: #f5f5f5; margin:0; }
+h1 { text-align: center; font-size: 1.8em; margin-bottom: 10px; }
+button { padding: 15px 25px; margin: 5px; border: none; border-radius: 10px; cursor: pointer; font-size: 1.1em; }
+#scan-region { width: 100%; max-width: 400px; height: 300px; margin: 10px auto; border: 3px solid #007bff; border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 1.1em; }
+th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+th { background: #eee; }
+#total { font-size: 2em; color: green; text-align: center; margin: 10px 0; }
+#change { font-size: 1.5em; text-align: center; margin: 5px 0; }
+.input-buttons { text-align: center; margin: 10px 0; }
+input[type=number] { width: 100%; padding: 10px; font-size: 1.1em; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<h1>イベント会計アプリ</h1>
+
+<!-- CSV読み込み -->
+<input type="file" id="csvFile" accept=".csv" />
+<p id="productCount"></p>
+
+<!-- QRコードスキャン -->
+<div id="scan-region"></div>
+
+<!-- 会計リスト -->
+<table>
+<thead>
+<tr><th>商品名</th><th>価格</th><th>販売数</th></tr>
+</thead>
+<tbody id="salesList"></tbody>
+</table>
+
+<p id="total">合計: 0円</p>
+
+<!-- 支払いボタン -->
+<div class="input-buttons">
+    <button data-amount="100">100円</button>
+    <button data-amount="500">500円</button>
+    <button data-amount="1000">1000円</button>
+    <button data-amount="2000">2000円</button>
+    <button data-amount="5000">5000円</button>
+</div>
+<input type="number" id="paid" placeholder="その他金額入力" />
+<p id="change"></p>
+
+<!-- CSV出力 -->
+<button id="exportBtn" style="background-color: orange; color:white; width:100%;">売上CSVを保存</button>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+
+<script>
+let products = [];
+let sales = {};
+let total = 0;
+
+// CSV読み込み
+document.getElementById('csvFile').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results){
+            products = results.data.map(row => ({
+                id: row.ID,
+                name: row.商品名,
+                price: parseInt(row.価格),
+                stock: parseInt(row.在庫数),
+                sold: 0
+            }));
+            document.getElementById('productCount').textContent = `商品数: ${products.length}`;
+        }
+    });
+});
+
+// QRコードスキャン（カメラのみ使用）
+function onScanSuccess(decodedText, decodedResult) {
+    const product = products.find(p => p.id === decodedText);
+    if(!product) {
+        alert("未登録の商品IDです");
+        return;
+    }
+    product.sold +=1;
+    sales[product.id] = product;
+
+    total += product.price;
+    updateSalesList();
+}
+
+function updateSalesList() {
+    const tbody = document.getElementById('salesList');
+    tbody.innerHTML = '';
+    for(const id in sales){
+        const p = sales[id];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.name}</td><td>${p.price}円</td><td>${p.sold}</td>`;
+        tbody.appendChild(tr);
+    }
+    document.getElementById('total').textContent = `合計: ${total}円`;
+    updateChange();
+}
+
+// 支払い・お釣り
+function updateChange(){
+    const paid = parseInt(document.getElementById('paid').value) || 0;
+    const change = paid - total;
+    const el = document.getElementById('change');
+    if(change >= 0){
+        el.textContent = `お釣り: ${change}円`;
+        el.style.color = 'green';
+    }else{
+        el.textContent = `不足: ${-change}円`;
+        el.style.color = 'red';
+    }
+}
+document.getElementById('paid').addEventListener('input', updateChange);
+
+// 金額ボタン
+document.querySelectorAll('.input-buttons button').forEach(btn => {
+    btn.addEventListener('click', ()=>{
+        const amount = parseInt(btn.getAttribute('data-amount'));
+        const paidInput = document.getElementById('paid');
+        paidInput.value = (parseInt(paidInput.value)||0) + amount;
+        updateChange();
+    });
+});
+
+// CSV出力
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+    let csvContent = "商品ID,商品名,価格,販売数,売上合計\n";
+    for(const id in sales){
+        const p = sales[id];
+        const totalPrice = p.price * p.sold;
+        csvContent += `${p.id},${p.name},${p.price},${p.sold},${totalPrice}\n`;
+    }
+    const blob = new Blob([csvContent], {type: "text/csv;charset=utf-8"});
+    saveAs(blob, "sales_summary.csv");
+});
+
+// QRコードスキャナー起動
+const html5QrCode = new Html5Qrcode("scan-region");
+Html5Qrcode.getCameras().then(cameras => {
+    if(cameras && cameras.length){
+        html5QrCode.start(
+            { facingMode: "environment" },
+            { fps:10, qrbox:250 },
+            onScanSuccess
+        );
+    }
+}).catch(err => console.log(err));
+</script>
+
+</body>
+</html>
