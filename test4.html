@@ -13,19 +13,24 @@
 <button id="startBtn">カメラ起動</button>
 <video id="video" autoplay playsinline></video>
 <p>読み取り結果: <span id="result">未読み取り</span></p>
+<p id="log"></p>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
 const video = document.getElementById("video");
 const resultSpan = document.getElementById("result");
+const log = document.getElementById("log");
 
 document.getElementById("startBtn").onclick = async () => {
+  log.textContent = "カメラ起動を試みています…";
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
     video.srcObject = stream;
+    log.textContent = "✅ カメラ起動成功";
     scanQR();
   } catch (err) {
-    alert("カメラを起動できません: " + err.message);
+    console.error(err);
+    log.textContent = "❌ カメラ起動エラー: " + err.name + " / " + err.message;
   }
 };
 
@@ -37,4 +42,17 @@ function scanQR(){
     if(video.readyState === video.HAVE_ENOUGH_DATA){
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, ca
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
+      if(code){
+        resultSpan.textContent = code.data;
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
+}
+</script>
+</body>
+</html>
