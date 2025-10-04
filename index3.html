@@ -2,66 +2,71 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>イベント会計アプリ ver5.1</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>イベント簡易会計アプリ ver5.1</title>
 <style>
-body { font-family: sans-serif; margin: 20px; }
-h1 { font-size: 20px; }
-#status { padding: 5px; margin: 5px 0; font-weight: bold; }
-#status.ok { color: green; }
-#status.err { color: red; }
-#cart { margin-top: 10px; border: 1px solid #ccc; padding: 10px; }
-button { margin: 5px; padding: 8px 12px; }
-#barcodeInput { width: 250px; padding: 5px; font-size: 16px; }
+body{font-family:sans-serif;background:#f4f6f8;margin:0;padding:14px;color:#222;}
+header{text-align:center;margin-bottom:12px;}
+h1{margin:6px 0;font-size:1.3rem;}
+#version{color:#666;font-size:0.85rem;}
+.card{background:#fff;padding:12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.06);margin-bottom:12px;}
+input,button{font-size:1rem;}
+#barcodeInput{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;}
+#cart ul{list-style:none;padding:0;margin:0;}
+#cart li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #ccc;}
+.delBtn{background:#dc3545;color:#fff;border:none;padding:6px 8px;border-radius:6px;}
+.payBtn{background:#28a745;color:#fff;border:none;padding:10px;margin:4px;border-radius:6px;}
+#checkoutBtn{background:#ffc107;color:#000;border:none;padding:12px;border-radius:8px;width:100%;font-weight:700;}
+#exportBtn{background:#343a40;color:#fff;border:none;padding:10px;border-radius:8px;}
+#scanMsg{font-weight:bold;margin-top:6px;}
 </style>
 </head>
 <body>
-<h1>イベント会計アプリ ver5.1</h1>
-<p>商品CSVを読み込み → バーコードリーダーでスキャン（CRで確定）</p>
+<header>
+  <h1>🎉 イベント簡易会計アプリ</h1>
+  <div id="version">2025-10-04 ver5.1</div>
+</header>
 
-<!-- CSVファイル読み込み -->
-<input type="file" id="csvFile" accept=".csv">
-<div id="status">商品データ未読込</div>
+<section class="card">
+  <h3>📂 商品データ読み込み</h3>
+  <input type="file" id="csvFile" accept=".csv" />
+  <p style="font-size:0.9rem;color:#555">※ フォーマット: ID,商品名,価格</p>
+  <div id="csvStatus">未読込</div>
+</section>
 
-<!-- バーコード入力欄（Bluetoothリーダー入力用） -->
-<input type="text" id="barcodeInput" placeholder="ここにバーコード入力" autofocus>
-<p>読み取り結果: <span id="lastScan">未読み取り</span></p>
+<section class="card">
+  <h3>🔎 バーコード入力</h3>
+  <input type="text" id="barcodeInput" placeholder="Bluetoothバーコードリーダーで入力" autofocus>
+  <div id="scanMsg">待機中</div>
+</section>
 
-<hr>
-<h3>カート</h3>
-<ul id="cartList"></ul>
-<p>合計: <span id="total">0</span> 円</p>
+<section id="cart" class="card">
+  <h3>🛒 カート</h3>
+  <ul id="cartItems"></ul>
+  <p>合計: <strong id="total">0</strong> 円</p>
+  <button id="checkoutBtn">会計確定</button>
+</section>
 
-<!-- 受け取り金額ボタン -->
-<h3>受け取り金額</h3>
-<div id="payButtons">
-  <button onclick="addPayment(100)">100円</button>
-  <button onclick="addPayment(500)">500円</button>
-  <button onclick="addPayment(1000)">1000円</button>
-  <button onclick="addPayment(5000)">5000円</button>
-  <button onclick="addPayment(10000)">10000円</button>
-</div>
-<p>受取合計: <span id="paid">0</span> 円</p>
-<p>お釣り: <span id="change">0</span> 円</p>
+<section class="card">
+  <h3>💰 受取金額（参考）</h3>
+  <button class="payBtn" data-amount="100">100円</button>
+  <button class="payBtn" data-amount="500">500円</button>
+  <button class="payBtn" data-amount="1000">1000円</button>
+  <button class="payBtn" data-amount="5000">5000円</button>
+  <button class="payBtn" data-amount="10000">10000円</button>
+  <p>受取合計: <strong id="paid">0</strong> 円</p>
+  <p>お釣り: <strong id="change">0</strong> 円</p>
+</section>
 
-<button onclick="checkout()">会計確定</button>
-<button onclick="clearCart()">カートクリア</button>
-<button id="exportBtn">売上履歴CSV出力</button>
-
-<hr>
-<h3>売上履歴</h3>
-<ul id="historyList"></ul>
-
-<footer style="margin-top:20px;font-size:12px;color:gray;">
-Ver5.1 (2025-10-04)<br>
-・商品CSV読み込み機能復活<br>
-・Bluetoothバーコードリーダー（CRのみ）対応<br>
-・一致した商品を自動カート追加<br>
-・入力値は常に半角変換処理<br>
-</footer>
+<section class="card">
+  <h3>📝 売上履歴</h3>
+  <ul id="historyList"></ul>
+  <button id="exportBtn">CSVエクスポート</button>
+</section>
 
 <script>
 // 商品データ
-let products = {};   // {ID: {name, price}}
+let products = {};
 let cart = [];
 let total = 0;
 let paid = 0;
@@ -69,35 +74,34 @@ let salesHistory = [];
 
 // 全角→半角変換
 function toHalfWidth(str){
-  return str.replace(/[！-～]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0)-0xFEE0)
-  ).replace(/　/g," ");
+  return str.replace(/[！-～]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).replace(/　/g," ");
 }
 
 // CSV読み込み
-document.getElementById("csvFile").addEventListener("change", function(e){
-  const file = e.target.files[0];
+document.getElementById("csvFile").addEventListener("change",function(evt){
+  const file = evt.target.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = function(){
-    const lines = reader.result.split(/\r?\n/).filter(l=>l.trim());
+  reader.onload = function(e){
+    const lines = e.target.result.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
     products = {};
-    for(let i=1;i<lines.length;i++){ // 1行目ヘッダ想定
-      const [id,name,price] = lines[i].split(",");
-      if(id && name && price){
-        products[toHalfWidth(id.trim())] = {name:name.trim(), price:parseInt(price)};
+    lines.forEach((line,idx)=>{
+      if(idx===0) return; // ヘッダスキップ
+      const cols = line.split(",");
+      if(cols.length>=3 && !isNaN(cols[2])){
+        const id = toHalfWidth(cols[0].trim());
+        products[id] = {name: cols[1].trim(), price: parseInt(cols[2])};
       }
-    }
-    document.getElementById("status").textContent = "商品データ読込完了";
-    document.getElementById("status").className = "ok";
+    });
+    document.getElementById("csvStatus").textContent=`読込完了: ${Object.keys(products).length}件`;
   };
   reader.readAsText(file,"UTF-8");
 });
 
-// バーコード入力処理
+// バーコード入力処理（CRのみ対応）
 const barcodeInput = document.getElementById("barcodeInput");
-barcodeInput.addEventListener("keydown", (e)=>{
-  if(e.key === "Enter" || e.keyCode === 13){ // CR/Enter検出
+barcodeInput.addEventListener("keydown",(e)=>{
+  if(e.key === "Enter" || e.keyCode===13){
     const code = toHalfWidth(barcodeInput.value.trim());
     barcodeInput.value = "";
     if(!code) return;
@@ -112,86 +116,92 @@ barcodeInput.addEventListener("keydown", (e)=>{
   }
 });
 
-// カート追加
+// カート操作
 function addToCart(code){
   cart.push(products[code]);
   total += products[code].price;
-  updateCart();
+  updateCartUI();
 }
-
-// カート更新
-function updateCart(){
-  const list=document.getElementById("cartList");
-  list.innerHTML="";
-  cart.forEach(item=>{
-    const li=document.createElement("li");
-    li.textContent=`${item.name} - ${item.price}円`;
-    list.appendChild(li);
+function updateCartUI(){
+  const ul = document.getElementById("cartItems");
+  ul.innerHTML="";
+  cart.forEach((item,idx)=>{
+    const li = document.createElement("li");
+    li.textContent = `${item.name} - ${item.price}円`;
+    const del = document.createElement("button");
+    del.textContent = "❌"; del.className="delBtn";
+    del.onclick=()=>{ removeFromCart(idx); };
+    li.appendChild(del);
+    ul.appendChild(li);
   });
-  document.getElementById("total").textContent=total;
+  document.getElementById("total").textContent = total;
   updateChange();
 }
+function removeFromCart(idx){
+  total -= cart[idx].price;
+  cart.splice(idx,1);
+  updateCartUI();
+}
 
-// メッセージ表示
+// メッセージ
 function showMsg(msg,isErr){
-  const el=document.getElementById("lastScan");
+  const el = document.getElementById("scanMsg");
   el.textContent=msg;
   el.style.color=isErr?"red":"green";
 }
 
-// 支払い
-function addPayment(val){
-  paid += val;
-  document.getElementById("paid").textContent=paid;
-  updateChange();
-}
-function updateChange(){
-  document.getElementById("change").textContent=paid-total;
-}
-
 // 会計確定
-function checkout(){
-  if(cart.length===0) return;
+document.getElementById("checkoutBtn").addEventListener("click",()=>{
+  if(cart.length===0) return alert("カートが空です");
   salesHistory.push({
     time:new Date().toLocaleString(),
     items:cart.map(c=>c.name),
     sum:total
   });
   renderHistory();
-  clearCart();
-}
-
-// カートクリア
-function clearCart(){
   cart=[]; total=0; paid=0;
-  updateCart();
+  updateCartUI();
   document.getElementById("paid").textContent=0;
   document.getElementById("change").textContent=0;
+});
+
+// 支払いボタン
+document.querySelectorAll(".payBtn").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const amount=parseInt(btn.dataset.amount);
+    paid += amount;
+    document.getElementById("paid").textContent=paid;
+    updateChange();
+  });
+});
+function updateChange(){
+  document.getElementById("change").textContent = Math.max(0, paid-total);
 }
 
-// 履歴表示
+// 売上履歴
 function renderHistory(){
-  const list=document.getElementById("historyList");
-  list.innerHTML="";
-  salesHistory.forEach(sale=>{
+  const ul = document.getElementById("historyList");
+  ul.innerHTML="";
+  salesHistory.forEach(s=>{
     const li=document.createElement("li");
-    li.textContent=`${sale.time} - ${sale.items.join(" / ")} : ${sale.sum}円`;
-    list.appendChild(li);
+    li.textContent=`${s.time} - ${s.items.join(" / ")} : ${s.sum}円`;
+    ul.appendChild(li);
   });
 }
 
 // CSV出力
-document.getElementById("exportBtn").onclick=()=>{
+document.getElementById("exportBtn").addEventListener("click",()=>{
+  if(salesHistory.length===0){ alert("履歴なし"); return; }
   let csv="日時,商品リスト,合計金額\n";
-  salesHistory.forEach(sale=>{
-    csv+=`${sale.time},"${sale.items.join(" / ")}",${sale.sum}\n`;
+  salesHistory.forEach(s=>{
+    csv+=`${s.time},"${s.items.join(" / ")}",${s.sum}\n`;
   });
   const blob=new Blob([csv],{type:"text/csv"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url; a.download="sales_history.csv"; a.click();
   URL.revokeObjectURL(url);
-};
+});
 </script>
 </body>
 </html>
