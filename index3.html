@@ -1,253 +1,380 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>イベント会計アプリ（スマホ版）</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>イベント会計アプリ ver5.0</title>
 <style>
-body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 10px; margin:0; }
-h1 { text-align: center; color: #333; font-size: 1.5em; }
-#version { text-align:center; color:#555; margin-bottom: 10px; font-size:0.9em; }
-
-/* カメラ映像は画面幅に応じて調整 */
-#video {
-  width: 100%;
-  max-width: 400px;
-  height: 200px;       /* 高さを小さく固定 */
-  border: 3px solid #333;
-  display: block;
-  margin: 10px auto;
-  border-radius: 0;
-  object-fit: cover;   /* 中央部分を表示 */
-}
-
-/* ボタン大きめで押しやすく */
-button { padding: 15px 20px; margin: 5px 0; cursor: pointer; border: none; border-radius: 8px; color: #fff; font-size: 1em; width: 48%; box-sizing: border-box; }
-button:hover { opacity: 0.9; }
-#cart, #products, #history, #payment { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-ul { list-style: none; padding-left: 0; }
-li { padding: 5px 0; font-size: 1em; }
-
-/* 受取金額ボタン */
-#payment button { background: #28a745; width: 30%; margin:3px; }
-
-/* 会計確定ボタン */
-#checkoutBtn { background: #ffc107; color: #333; width: 100%; }
-
-/* 削除ボタン */
-.delBtn { background: #dc3545; margin-left: 5px; border-radius: 3px; padding: 3px 6px; font-size: 0.9em; }
-
-/* カメラ起動ボタンを目立たせる */
-#startBtn {
-  background-color: #007bff; /* 濃いブルー */
-  color: #fff;
-  font-size: 1.2em;          
-  font-weight: bold;
-  padding: 20px;
-  margin: 20px auto;
-  width: 90%;
-  display: block;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-}
-#startBtn:hover {
-  background-color: #0056b3;
-}
+  :root{--bg:#f4f6f8;--card:#fff;--accent:#007bff;--accent-dark:#0056b3;--ok:#28a745;--warn:#ffc107;--danger:#dc3545}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:var(--bg);margin:0;padding:14px;color:#222}
+  header{text-align:center;margin-bottom:12px}
+  h1{margin:6px 0;font-size:1.2rem}
+  #version{color:#666;font-size:0.85rem}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.06);margin-bottom:12px}
+  /* Listen area */
+  #listenArea{display:flex;align-items:center;gap:8px}
+  #listenBtn{background:var(--accent);color:#fff;border:none;padding:12px 16px;border-radius:10px;font-weight:600;box-shadow:0 3px 6px rgba(0,0,0,0.12)}
+  #listenBtn[aria-pressed="true"]{background:var(--accent-dark)}
+  #statusDot{width:14px;height:14px;border-radius:50%;background:var(--danger);display:inline-block;box-shadow:0 1px 3px rgba(0,0,0,0.12)}
+  #statusText{font-weight:700;color:#333}
+  /* Input */
+  #barcodeInput{flex:1;padding:12px;border-radius:10px;border:1px solid #ddd;font-size:1rem}
+  #manualBtn{background:#6c757d;padding:10px 12px;border-radius:8px;color:#fff;border:none}
+  /* Cart */
+  #cart ul{padding-left:0;list-style:none;margin:0}
+  #cart li{display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px dashed #eee}
+  .delBtn{background:var(--danger);border:none;color:#fff;padding:6px 8px;border-radius:6px}
+  /* Payment */
+  .payBtn{background:var(--ok);border:none;color:#fff;padding:10px 12px;border-radius:8px;margin:4px}
+  #checkoutBtn{background:var(--warn);border:none;color:#222;padding:12px;border-radius:8px;width:100%;font-weight:700}
+  /* History */
+  #historyList{padding-left:0;list-style:none;margin:0}
+  .small{font-size:0.9rem;color:#555}
+  /* Export */
+  #exportBtn{background:#343a40;border:none;color:#fff;padding:10px;border-radius:8px}
+  /* Responsive */
+  @media (max-width:480px){
+    #listenBtn{padding:12px;width:44%}
+    #manualBtn{width:44%}
+  }
 </style>
 </head>
 <body>
 
-<h1>🎉 イベント簡易会計アプリ 🎉</h1>
-<p id="version">2025-08-30 ver3.14-s</p>
+<header>
+  <h1>🎉 イベント簡易会計アプリ</h1>
+  <div id="version">2025-08-30 ver5.0</div>
+</header>
 
-<input type="file" id="csvFile" accept=".csv"><br><br>
+<!-- Listen / Barcode input -->
+<section class="card" aria-label="バーコード読み取り">
+  <div class="row" id="listenArea">
+    <button id="listenBtn" aria-pressed="false">🔊 Listen（受信）</button>
+    <div id="status" style="display:flex;align-items:center;gap:8px;">
+      <span id="statusDot" title="停止"></span>
+      <span id="statusText">停止中</span>
+    </div>
+    <button id="manualBtn" title="手動入力でテスト">手動入力</button>
+  </div>
 
-<button id="startBtn">📷 カメラ起動</button>
-<video id="video" autoplay playsinline></video>
-<p style="text-align:center;">読み取り結果: <span id="result">未読み取り</span></p>
+  <div style="margin-top:10px; display:flex; gap:8px;">
+    <input id="barcodeInput" type="text" placeholder="バーコードを読み取るか手入力してEnter" autocomplete="off" />
+    <button id="clearInput" style="background:#e9ecef;border:none;padding:10px;border-radius:8px">クリア</button>
+  </div>
 
-<div id="cart">
+  <p class="small" style="margin-top:8px;color:#444">
+    ※ 外部Bluetoothバーコードリーダーはキーボードモードでペアリングしてください。リーダーが Enter を送信すると自動で処理されます。
+  </p>
+</section>
+
+<!-- Cart -->
+<section id="cart" class="card" aria-label="カート">
   <h3>🛒 カート</h3>
   <ul id="cartItems"></ul>
-  <p>合計: <span id="total">0</span> 円</p>
+  <p style="margin-top:8px">合計: <strong id="total">0</strong> 円</p>
   <button id="checkoutBtn">会計確定</button>
-</div>
+</section>
 
-<div id="payment">
-  <h3>💰 受取金額</h3>
-  <button class="payBtn" data-amount="100">100円</button>
-  <button class="payBtn" data-amount="500">500円</button>
-  <button class="payBtn" data-amount="1000">1000円</button>
-  <button class="payBtn" data-amount="5000">5000円</button>
-  <button class="payBtn" data-amount="10000">10000円</button>
-  <p>お釣り: <span id="change">0</span> 円</p>
-</div>
+<!-- Payment buttons -->
+<section id="payment" class="card" aria-label="受取金額">
+  <h3>💰 受取金額（参考）</h3>
+  <div>
+    <button class="payBtn" data-amount="100">100円</button>
+    <button class="payBtn" data-amount="500">500円</button>
+    <button class="payBtn" data-amount="1000">1000円</button>
+    <button class="payBtn" data-amount="5000">5000円</button>
+    <button class="payBtn" data-amount="10000">10000円</button>
+  </div>
+  <p style="margin-top:8px">お釣り: <strong id="change">0</strong> 円</p>
+</section>
 
-<div id="products">
-  <h3>📦 スキャン済み商品</h3>
-  <ul id="productList"></ul>
-</div>
-
-<div id="history">
+<!-- History -->
+<section id="history" class="card" aria-label="売上履歴">
   <h3>📝 売上履歴</h3>
   <ul id="historyList"></ul>
-  <button id="exportBtn">CSVエクスポート</button>
-</div>
+  <div style="margin-top:10px;display:flex;gap:8px;">
+    <button id="exportBtn">CSVエクスポート</button>
+    <button id="resetHistory" style="background:#6f42c1;border:none;color:#fff;padding:10px;border-radius:8px">履歴クリア</button>
+  </div>
+</section>
 
-<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
-let products = {};
+/* ===== ver5.0 - Bluetoothバーコード入力版 =====
+   概要:
+   - 外部Bluetoothバーコードリーダー（キーボードモード）からの入力を受け付ける
+   - Enterで読み取り確定 -> 商品DBと照合 -> カート追加
+   - Listen 切替で受信オン/オフ
+   - 振動（可能な場合）で成功/失敗を通知
+   - 会計・お釣り計算・CSV出力対応
+*/
+
+/* --- サンプル商品データ（ID → name, price） 
+   実運用ではCSV読み込みや編集で差し替えてください */
+let products = {
+  "101":"ペンライト|1000",
+  "102":"アクキー|500",
+  "103":"缶バッジ|300",
+  "104":"タオル|1500",
+  "105":"ステッカー|200"
+};
+
 let cart = [];
 let total = 0;
 let salesHistory = [];
-let lastCode = "";
-let codeVisible = false;
 
-const video = document.getElementById("video");
-const resultSpan = document.getElementById("result");
-const cartItems = document.getElementById("cartItems");
-const totalSpan = document.getElementById("total");
-const productList = document.getElementById("productList");
-const historyList = document.getElementById("historyList");
-const changeSpan = document.getElementById("change");
+/* --- DOM */
+const listenBtn = document.getElementById('listenBtn');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const barcodeInput = document.getElementById('barcodeInput');
+const clearInput = document.getElementById('clearInput');
+const manualBtn = document.getElementById('manualBtn');
 
-document.getElementById("csvFile").addEventListener("change", function(evt){
-  const file = evt.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const lines = e.target.result.split("\n").map(l => l.trim()).filter(l => l);
-    products = {};
-    for(let line of lines){
-      const [id, name, price] = line.split(",");
-      products[id] = { name, price: parseInt(price) };
-    }
-    alert("商品データ読み込み完了: " + Object.keys(products).length + "件");
-  };
-  reader.readAsText(file);
+const cartItems = document.getElementById('cartItems');
+const totalSpan = document.getElementById('total');
+const checkoutBtn = document.getElementById('checkoutBtn');
+
+const payBtns = document.querySelectorAll('.payBtn');
+const changeSpan = document.getElementById('change');
+
+const historyList = document.getElementById('historyList');
+const exportBtn = document.getElementById('exportBtn');
+const resetHistory = document.getElementById('resetHistory');
+
+/* --- Listen state */
+let listening = false;
+
+/* update status UI */
+function updateStatusUI(){
+  if(listening){
+    statusDot.style.background = 'green';
+    statusText.textContent = '受信中';
+    listenBtn.setAttribute('aria-pressed','true');
+  }else{
+    statusDot.style.background = 'red';
+    statusText.textContent = '停止中';
+    listenBtn.setAttribute('aria-pressed','false');
+  }
+}
+
+/* toggle listening */
+listenBtn.addEventListener('click', () => {
+  listening = !listening;
+  updateStatusUI();
+  if(listening){
+    // focus input so Bluetooth scanner types into it
+    barcodeInput.focus({preventScroll:true});
+  } else {
+    // blur to avoid accidental input
+    barcodeInput.blur();
+  }
 });
 
-document.getElementById("startBtn").onclick = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    video.srcObject = stream;
-    scanQR();
-  } catch (err) {
-    alert("カメラ起動失敗: " + err.message);
-  }
-};
+/* manual input button (for testing) */
+manualBtn.addEventListener('click', () => {
+  barcodeInput.focus({preventScroll:true});
+});
 
-function scanQR(){
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  function tick(){
-    if(video.readyState === video.HAVE_ENOUGH_DATA){
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-      const code = jsQR(imageData.data, canvas.width, canvas.height);
-      if(code){
-        if(code.data !== lastCode || !codeVisible){
-          handleQR(code.data);
-          lastCode = code.data;
-          codeVisible = true;
-        }
-      } else {
-        codeVisible = false;
+/* clear input */
+clearInput.addEventListener('click', () => {
+  barcodeInput.value = '';
+  barcodeInput.focus({preventScroll:true});
+});
+
+/* keydown handler for barcode input
+   - scanner generally sends characters then Enter
+   - we only process when listening == true
+*/
+barcodeInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    if(!listening){
+      // ignore unless user explicitly turned on listening
+      return;
+    }
+    const code = barcodeInput.value.trim();
+    if(code) {
+      processBarcode(code);
+    }
+    // clear always so scanner can send next
+    barcodeInput.value = '';
+    // keep focus for next input
+    setTimeout(()=>{ barcodeInput.focus({preventScroll:true}); }, 50);
+  }
+});
+
+/* also allow paste + Enter or direct button (for accessibility) */
+function processBarcode(code){
+  // Normalize: many scanners send prefix/suffix; trim non-printables
+  code = code.replace(/[^ -~\u0080-\uFFFF]+/g, '').trim();
+  // handle lookup
+  if(products[code]){
+    const [name, priceStr] = products[code].split('|');
+    const price = parseInt(priceStr) || 0;
+    cart.push({ id: code, name, price });
+    total += price;
+    appendCartItem(name, price);
+    vibrateSuccess();
+    showTempMessage(`追加: ${name} (${price}円)`);
+  } else {
+    vibrateError();
+    showTempMessage(`不明な商品ID: ${code}`, true);
+  }
+  updateTotalUI();
+}
+
+/* Append cart item with delete button */
+function appendCartItem(name, price){
+  const li = document.createElement('li');
+  li.textContent = `${name} - ${price}円`;
+  const btn = document.createElement('button');
+  btn.textContent = '❌';
+  btn.className = 'delBtn';
+  btn.addEventListener('click', () => {
+    // find and remove first matching item (by name & price)
+    for(let i=0;i<cart.length;i++){
+      if(cart[i].name===name && cart[i].price===price){
+        cart.splice(i,1);
+        total -= price;
+        updateTotalUI();
+        li.remove();
+        return;
       }
     }
-    requestAnimationFrame(tick);
-  }
-  tick();
-}
-
-function handleQR(id){
-  if(products[id]){
-    cart.push(products[id]);
-    total += products[id].price;
-    resultSpan.textContent = `追加: ${products[id].name} (${products[id].price}円)`;
-    updateCart();
-    updateProductList();
-  } else {
-    resultSpan.textContent = `不明な商品ID: ${id}`;
-  }
-}
-
-function updateCart(){
-  cartItems.innerHTML = "";
-  cart.forEach((item,index)=>{
-    const li=document.createElement("li");
-    li.textContent=`${item.name} - ${item.price}円 `;
-    const delBtn=document.createElement("button");
-    delBtn.textContent="❌";
-    delBtn.className="delBtn";
-    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
-    li.appendChild(delBtn);
-    cartItems.appendChild(li);
   });
-  totalSpan.textContent=total;
-  changeSpan.textContent=0;
+  li.appendChild(btn);
+  cartItems.appendChild(li);
 }
 
-function updateProductList(){
-  productList.innerHTML="";
-  cart.forEach((item,index)=>{
-    const li=document.createElement("li");
-    li.textContent=`${item.name} - ${item.price}円 `;
-    const delBtn=document.createElement("button");
-    delBtn.textContent="❌";
-    delBtn.className="delBtn";
-    delBtn.onclick=()=>{ cart.splice(index,1); total-=item.price; updateCart(); updateProductList(); };
-    li.appendChild(delBtn);
-    productList.appendChild(li);
+/* UI total update */
+function updateTotalUI(){
+  totalSpan.textContent = total;
+  // reset change display
+  changeSpan.textContent = 0;
+}
+
+/* Vibrate helpers */
+function vibrateSuccess(){
+  if(navigator.vibrate) navigator.vibrate(180);
+}
+function vibrateError(){
+  if(navigator.vibrate) navigator.vibrate([80,40,80]);
+}
+
+/* show temporary message in result area */
+let tempMsgTimer = null;
+function showTempMessage(msg, isError=false){
+  const prev = document.getElementById('tempMsg');
+  if(prev) prev.remove();
+  const p = document.createElement('p');
+  p.id = 'tempMsg';
+  p.textContent = msg;
+  p.style.fontWeight = '700';
+  p.style.color = isError ? '#b30000' : '#006600';
+  p.style.marginTop = '8px';
+  p.className = 'card';
+  // insert below listen area
+  const topSection = document.querySelector('section.card');
+  topSection.appendChild(p);
+  if(tempMsgTimer) clearTimeout(tempMsgTimer);
+  tempMsgTimer = setTimeout(()=>{ p.remove(); tempMsgTimer=null; }, 2200);
+}
+
+/* Checkout (record sale, clear cart) */
+checkoutBtn.addEventListener('click', () => {
+  if(cart.length === 0){
+    alert('カートが空です');
+    return;
+  }
+  const time = new Date().toLocaleString();
+  salesHistory.push({
+    time,
+    items: cart.map(c => `${c.name}(${c.price}円)`),
+    sum: total
   });
-}
-
-document.getElementById("checkoutBtn").onclick=()=>{
-  if(cart.length===0){ alert("カートが空です"); return; }
-  const time=new Date().toLocaleString();
-  salesHistory.push({time, items:cart.map(c=>`${c.name}(${c.price}円)`), sum:total});
-  updateHistory();
-  cart=[]; total=0; updateCart();
-  alert("会計完了！受取金額ボタンでお釣りを確認してください");
-};
-
-document.querySelectorAll(".payBtn").forEach(btn=>{
-  btn.onclick=()=>{
-    const amount=parseInt(btn.dataset.amount);
-    const change=amount-total;
-    changeSpan.textContent = change>=0?change:0;
-  };
+  updateHistoryUI();
+  cart = [];
+  total = 0;
+  cartItems.innerHTML = '';
+  updateTotalUI();
+  alert('会計完了（履歴に保存）');
 });
 
-function updateHistory(){
-  historyList.innerHTML="";
+/* Payment (change calc) */
+payBtns.forEach(btn=>{
+  btn.addEventListener('click', () => {
+    const amount = parseInt(btn.dataset.amount);
+    const change = amount - total;
+    changeSpan.textContent = change >= 0 ? change : 0;
+  });
+});
+
+/* History UI */
+function updateHistoryUI(){
+  historyList.innerHTML = '';
   salesHistory.forEach(sale=>{
-    const li=document.createElement("li");
-    li.textContent=`${sale.time} - 合計${sale.sum}円 [${sale.items.join(" / ")}]`;
+    const li = document.createElement('li');
+    li.textContent = `${sale.time} - 合計${sale.sum}円 [${sale.items.join(' / ')}]`;
     historyList.appendChild(li);
   });
 }
 
-document.getElementById("exportBtn").onclick=()=>{
-  let csv="日時,商品リスト,合計金額\n";
+/* Export CSV */
+exportBtn.addEventListener('click', () => {
+  if(salesHistory.length===0){ alert('売上履歴がありません'); return; }
+  let csv = '日時,商品リスト,合計金額\n';
   salesHistory.forEach(sale=>{
-    csv+=`${sale.time},"${sale.items.join(" / ")}",${sale.sum}\n`;
+    csv += `${sale.time},"${sale.items.join(' / ')}",${sale.sum}\n`;
   });
-  const blob=new Blob([csv],{type:"text/csv"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download="sales_history.csv"; a.click();
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sales_history_${(new Date()).toISOString().slice(0,10)}.csv`;
+  a.click();
   URL.revokeObjectURL(url);
-};
+});
+
+/* Reset history */
+resetHistory.addEventListener('click', () => {
+  if(!confirm('売上履歴をクリアしますか？（元に戻せません）')) return;
+  salesHistory = [];
+  updateHistoryUI();
+});
+
+/* Give initial focus if desired */
+updateStatusUI();
+barcodeInput.placeholder = 'バーコードを読み取るか手入力してEnter';
+
+/* Optional: allow clicking anywhere to refocus input when listening */
+document.addEventListener('click', (e)=>{
+  if(listening && e.target !== barcodeInput && e.target !== listenBtn){
+    barcodeInput.focus({preventScroll:true});
+  }
+});
+
+/* CSV load to replace product DB (simple) -- optional (drag from earlier versions) */
+document.getElementById('csvFile').addEventListener('change', function(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+    const newDb = {};
+    lines.forEach(line=>{
+      const cols = line.split(',');
+      // expecting ID,商品名,価格  (ignore headers if non-numeric ID)
+      const id = cols[0];
+      const name = cols[1] || ('商品'+id);
+      const price = parseInt((cols[2]||'0').trim()) || 0;
+      newDb[id.trim()] = `${name.trim()}|${price}`;
+    });
+    products = newDb;
+    alert('商品データ読込完了: ' + Object.keys(products).length + '件');
+  };
+  reader.readAsText(file);
+});
 </script>
 </body>
 </html>
-
-
-
-
